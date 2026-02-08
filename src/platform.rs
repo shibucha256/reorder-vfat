@@ -5,6 +5,7 @@ use std::path::Path;
 pub(crate) trait Platform {
     fn ensure_removable_and_not_c(&self, path: &Path) -> Result<()>;
     fn list_removable_drives(&self) -> Result<Vec<String>>;
+    fn is_vfat(&self, path: &Path) -> Result<bool>;
 }
 
 pub(crate) struct WindowsPlatform;
@@ -16,6 +17,10 @@ impl Platform for WindowsPlatform {
 
     fn list_removable_drives(&self) -> Result<Vec<String>> {
         list_removable_drives_impl()
+    }
+
+    fn is_vfat(&self, path: &Path) -> Result<bool> {
+        is_vfat_impl(path)
     }
 }
 
@@ -76,6 +81,37 @@ fn list_removable_drives_impl() -> Result<Vec<String>> {
 }
 
 #[cfg(windows)]
+fn is_vfat_impl(path: &Path) -> Result<bool> {
+    let root = drive_root(path)?;
+    let root_wide = os_str_to_wide(&OsString::from(&root));
+    let mut fs_name_buf: [u16; 32] = [0; 32];
+    let ok = unsafe {
+        get_volume_information_w(
+            root_wide.as_ptr(),
+            std::ptr::null_mut(),
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            fs_name_buf.as_mut_ptr(),
+            fs_name_buf.len() as u32,
+        )
+    };
+    if ok == 0 {
+        anyhow::bail!("GetVolumeInformationW failed for {}", root);
+    }
+
+    let fs_name = String::from_utf16_lossy(&fs_name_buf);
+    let fs_name = fs_name.trim_end_matches('\u{0}').to_ascii_uppercase();
+    Ok(matches!(fs_name.as_str(), "FAT" | "FAT12" | "FAT16" | "FAT32" | "EXFAT"))
+}
+
+#[cfg(not(windows))]
+fn is_vfat_impl(_path: &Path) -> Result<bool> {
+    Ok(false)
+}
+
+#[cfg(windows)]
 fn drive_root(path: &Path) -> Result<String> {
     use std::path::Component;
     use std::path::Prefix;
@@ -99,4 +135,42 @@ fn os_str_to_wide(s: &OsStr) -> Vec<u16> {
     let mut wide: Vec<u16> = s.encode_wide().collect();
     wide.push(0);
     wide
+}
+
+#[cfg(windows)]
+unsafe fn get_volume_information_w(
+    root_path: *const u16,
+    volume_name: *mut u16,
+    volume_name_size: u32,
+    serial_number: *mut u32,
+    max_component_len: *mut u32,
+    fs_flags: *mut u32,
+    fs_name: *mut u16,
+    fs_name_size: u32,
+) -> i32 {
+    unsafe extern "system" {
+        fn GetVolumeInformationW(
+            lpRootPathName: *const u16,
+            lpVolumeNameBuffer: *mut u16,
+            nVolumeNameSize: u32,
+            lpVolumeSerialNumber: *mut u32,
+            lpMaximumComponentLength: *mut u32,
+            lpFileSystemFlags: *mut u32,
+            lpFileSystemNameBuffer: *mut u16,
+            nFileSystemNameSize: u32,
+        ) -> i32;
+    }
+
+    unsafe {
+        GetVolumeInformationW(
+            root_path,
+            volume_name,
+            volume_name_size,
+            serial_number,
+            max_component_len,
+            fs_flags,
+            fs_name,
+            fs_name_size,
+        )
+    }
 }

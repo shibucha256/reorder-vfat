@@ -318,6 +318,9 @@ pub(crate) fn handle_drive_select_keys<P: Platform>(app: &mut App<P>, code: KeyC
 
 fn perform_vfat_sort<P: Platform>(app: &mut App<P>) -> Result<SortSummary> {
     app.platform.ensure_removable_and_not_c(&app.current_dir)?;
+    if !app.platform.is_vfat(&app.current_dir)? {
+        anyhow::bail!("target drive is not FAT/exFAT");
+    }
     vfat_reorder_dir(&app.current_dir, &app.entries)
 }
 
@@ -339,6 +342,10 @@ mod tests {
 
         fn list_removable_drives(&self) -> Result<Vec<String>> {
             Ok(vec!["E:\\".to_string()])
+        }
+
+        fn is_vfat(&self, _path: &Path) -> Result<bool> {
+            Ok(true)
         }
     }
 

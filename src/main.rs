@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     let backend = ratatui::backend::CrosstermBackend::new(stdout);
     let mut terminal = ratatui::Terminal::new(backend).context("init terminal")?;
 
-    let result = rusttui01::run_app(&mut terminal);
+    let result = reorder_vfat::run_app(&mut terminal);
 
     disable_raw_mode().ok();
     let mut stdout = io::stdout();

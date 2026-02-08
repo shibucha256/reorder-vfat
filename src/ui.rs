@@ -13,7 +13,7 @@ pub(crate) fn ui<P: Platform>(frame: &mut Frame, app: &mut App<P>) {
         .split(size);
 
     let title = Paragraph::new(format!(
-        "rusttui01  |  {}",
+        "reorder-vfat  |  {}",
         app.current_dir.to_string_lossy()
     ))
     .style(Style::default().fg(Color::Cyan));
