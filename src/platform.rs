@@ -1,3 +1,7 @@
+// reorder-vfat Copyright (c) 2026 shibucha 
+// https://github.com/shibucha256/reorder-vfat
+// SPDX-License-Identifier: MIT
+
 use anyhow::Result;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;

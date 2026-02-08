@@ -1,3 +1,7 @@
+// reorder-vfat Copyright (c) 2026 shibucha 
+// https://github.com/shibucha256/reorder-vfat
+// SPDX-License-Identifier: MIT
+
 use anyhow::{Context, Result};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;

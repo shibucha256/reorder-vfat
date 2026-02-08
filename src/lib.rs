@@ -1,3 +1,7 @@
+// reorder-vfat Copyright (c) 2026 shibucha 
+// https://github.com/shibucha256/reorder-vfat
+// SPDX-License-Identifier: MIT
+
 mod app;
 mod fs_ops;
 mod platform;

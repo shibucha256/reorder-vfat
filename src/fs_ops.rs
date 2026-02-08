@@ -1,3 +1,7 @@
+// reorder-vfat Copyright (c) 2026 shibucha 
+// https://github.com/shibucha256/reorder-vfat
+// SPDX-License-Identifier: MIT
+
 use crate::app::Entry;
 use anyhow::{Context, Result};
 use std::fs;
