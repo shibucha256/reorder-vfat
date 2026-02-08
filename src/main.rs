@@ -276,6 +276,8 @@ fn handle_normal_keys(app: &mut App, code: KeyCode, modifiers: KeyModifiers) -> 
         KeyCode::Char('q') => return Ok(true),
         KeyCode::Up if modifiers.contains(KeyModifiers::CONTROL) => app.move_entry(-1),
         KeyCode::Down if modifiers.contains(KeyModifiers::CONTROL) => app.move_entry(1),
+        KeyCode::Insert => app.move_entry(1),
+        KeyCode::Delete => app.move_entry(-1),
         KeyCode::Up => app.move_selection(-1),
         KeyCode::Down => app.move_selection(1),
         KeyCode::Enter => app.enter_dir()?,
