@@ -20,9 +20,41 @@ pub(crate) fn read_dir_entries(dir: &Path) -> Result<Vec<Entry>> {
     Ok(entries)
 }
 
-pub(crate) fn vfat_reorder_dir(dir: &Path, entries: &[Entry]) -> Result<()> {
+pub(crate) struct SortSummary {
+    pub(crate) skipped_system: usize,
+    pub(crate) skipped_readonly: usize,
+}
+
+pub(crate) fn vfat_reorder_dir(dir: &Path, entries: &[Entry]) -> Result<SortSummary> {
     if entries.is_empty() {
-        return Ok(());
+        return Ok(SortSummary {
+            skipped_system: 0,
+            skipped_readonly: 0,
+        });
+    }
+
+    let mut sortable: Vec<Entry> = Vec::new();
+    let mut skipped_system = 0usize;
+    let mut skipped_readonly = 0usize;
+    for entry in entries {
+        let (is_system, is_readonly) = get_skip_flags(&entry.path)?;
+        if is_system || is_readonly {
+            if is_system {
+                skipped_system += 1;
+            }
+            if is_readonly {
+                skipped_readonly += 1;
+            }
+            continue;
+        }
+        sortable.push(entry.clone());
+    }
+
+    if sortable.is_empty() {
+        return Ok(SortSummary {
+            skipped_system,
+            skipped_readonly,
+        });
     }
 
     let tmp_dir = unique_tmp_dir(dir)?;
@@ -31,7 +63,7 @@ pub(crate) fn vfat_reorder_dir(dir: &Path, entries: &[Entry]) -> Result<()> {
     let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut to_move: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-    for entry in entries {
+    for entry in &sortable {
         let from = entry.path.clone();
         let to = tmp_dir.join(&entry.name);
         to_move.push((from, to));
@@ -48,7 +80,7 @@ pub(crate) fn vfat_reorder_dir(dir: &Path, entries: &[Entry]) -> Result<()> {
         moved.push((from.clone(), to.clone()));
     }
 
-    for entry in entries {
+    for entry in &sortable {
         let from = tmp_dir.join(&entry.name);
         let to = dir.join(&entry.name);
         if let Err(err) = fs::rename(&from, &to) {
@@ -67,7 +99,10 @@ pub(crate) fn vfat_reorder_dir(dir: &Path, entries: &[Entry]) -> Result<()> {
 
     let _ = fs::remove_dir(&tmp_dir);
 
-    Ok(())
+    Ok(SortSummary {
+        skipped_system,
+        skipped_readonly,
+    })
 }
 
 fn unique_tmp_dir(dir: &Path) -> Result<PathBuf> {
@@ -86,6 +121,39 @@ fn unique_tmp_dir(dir: &Path) -> Result<PathBuf> {
         }
     }
     anyhow::bail!("could not create unique temp dir");
+}
+
+#[cfg(windows)]
+fn get_file_attributes(path: &Path) -> Result<u32> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetFileAttributesW;
+
+    let mut wide: Vec<u16> = OsStr::new(path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let attrs = unsafe { GetFileAttributesW(wide.as_mut_ptr()) };
+    const INVALID_FILE_ATTRIBUTES: u32 = 0xFFFFFFFF;
+    if attrs == INVALID_FILE_ATTRIBUTES {
+        anyhow::bail!("GetFileAttributesW failed for {:?}", path);
+    }
+    Ok(attrs)
+}
+
+#[cfg(windows)]
+fn get_skip_flags(path: &Path) -> Result<(bool, bool)> {
+    const FILE_ATTRIBUTE_SYSTEM: u32 = 0x4;
+    const FILE_ATTRIBUTE_READONLY: u32 = 0x1;
+    let attrs = get_file_attributes(path)?;
+    let is_system = (attrs & FILE_ATTRIBUTE_SYSTEM) != 0;
+    let is_readonly = (attrs & FILE_ATTRIBUTE_READONLY) != 0;
+    Ok((is_system, is_readonly))
+}
+
+#[cfg(not(windows))]
+fn get_skip_flags(_path: &Path) -> Result<(bool, bool)> {
+    Ok((false, false))
 }
 
 #[cfg(test)]
@@ -131,7 +199,9 @@ mod tests {
         let mut entries = read_dir_entries(dir.path()).unwrap();
         entries.sort_by(|a, b| b.name.to_string_lossy().cmp(&a.name.to_string_lossy()));
 
-        vfat_reorder_dir(dir.path(), &entries).unwrap();
+        let summary = vfat_reorder_dir(dir.path(), &entries).unwrap();
+        assert_eq!(summary.skipped_system, 0);
+        assert_eq!(summary.skipped_readonly, 0);
 
         assert!(dir.path().join("a.txt").exists());
         assert!(dir.path().join("b.txt").exists());
@@ -143,5 +213,43 @@ mod tests {
             .filter(|n| n.starts_with(".vfatsort_tmp"))
             .collect();
         assert!(leftovers.is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn vfat_reorder_dir_skips_system_and_readonly() {
+        use std::process::Command;
+
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "keep.txt");
+        create_file(dir.path(), "system.txt");
+        create_file(dir.path(), "readonly.txt");
+
+        let system_path = dir.path().join("system.txt");
+        let readonly_path = dir.path().join("readonly.txt");
+
+        let set_sys = Command::new("attrib")
+            .arg(format!("+s"))
+            .arg(&system_path)
+            .status()
+            .expect("attrib +s failed");
+        assert!(set_sys.success());
+        let set_ro = Command::new("attrib")
+            .arg(format!("+r"))
+            .arg(&readonly_path)
+            .status()
+            .expect("attrib +r failed");
+        assert!(set_ro.success());
+
+        let mut entries = read_dir_entries(dir.path()).unwrap();
+        entries.sort_by(|a, b| a.name.to_string_lossy().cmp(&b.name.to_string_lossy()));
+
+        let summary = vfat_reorder_dir(dir.path(), &entries).unwrap();
+        assert_eq!(summary.skipped_system, 1);
+        assert_eq!(summary.skipped_readonly, 1);
+
+        assert!(dir.path().join("system.txt").exists());
+        assert!(dir.path().join("readonly.txt").exists());
+        assert!(dir.path().join("keep.txt").exists());
     }
 }

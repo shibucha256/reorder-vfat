@@ -1,4 +1,4 @@
-use crate::fs_ops::{read_dir_entries, vfat_reorder_dir};
+use crate::fs_ops::{read_dir_entries, vfat_reorder_dir, SortSummary};
 use crate::platform::Platform;
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyModifiers};
@@ -278,7 +278,16 @@ pub(crate) fn handle_confirm_sort_keys<P: Platform>(app: &mut App<P>, code: KeyC
     match code {
         KeyCode::Char('y') | KeyCode::Char('Y') => {
             match perform_vfat_sort(app) {
-                Ok(()) => app.message = Some("VFAT order written".to_string()),
+                Ok(summary) => {
+                    if summary.skipped_system == 0 && summary.skipped_readonly == 0 {
+                        app.message = Some("VFAT order written".to_string());
+                    } else {
+                        app.message = Some(format!(
+                            "VFAT order written (skipped system: {}, readonly: {})",
+                            summary.skipped_system, summary.skipped_readonly
+                        ));
+                    }
+                }
                 Err(err) => app.message = Some(format!("Sort failed: {err}")),
             }
             app.mode = Mode::Normal;
@@ -307,10 +316,9 @@ pub(crate) fn handle_drive_select_keys<P: Platform>(app: &mut App<P>, code: KeyC
     Ok(())
 }
 
-fn perform_vfat_sort<P: Platform>(app: &mut App<P>) -> Result<()> {
+fn perform_vfat_sort<P: Platform>(app: &mut App<P>) -> Result<SortSummary> {
     app.platform.ensure_removable_and_not_c(&app.current_dir)?;
-    vfat_reorder_dir(&app.current_dir, &app.entries)?;
-    Ok(())
+    vfat_reorder_dir(&app.current_dir, &app.entries)
 }
 
 #[cfg(test)]
