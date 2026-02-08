@@ -117,9 +117,19 @@ impl<P: Platform> App<P> {
 
     pub(crate) fn go_parent(&mut self) -> Result<()> {
         let Some(parent) = self.current_dir.parent() else { return Ok(()); };
+        let current_name = self.current_dir.file_name().map(OsString::from);
         self.current_dir = parent.to_path_buf();
         self.list_state.select(Some(0));
         self.refresh()?;
+        if let Some(name) = current_name {
+            if let Some(idx) = self
+                .entries
+                .iter()
+                .position(|e| e.name == name && e.is_dir)
+            {
+                self.list_state.select(Some(idx));
+            }
+        }
         Ok(())
     }
 
