@@ -1,5 +1,5 @@
 use crate::fs_ops::{read_dir_entries, vfat_reorder_dir};
-use crate::platform::{ensure_removable_and_not_c, list_removable_drives};
+use crate::platform::Platform;
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::widgets::ListState;
@@ -22,7 +22,8 @@ pub(crate) enum Mode {
     SelectDrive,
 }
 
-pub(crate) struct App {
+pub(crate) struct App<P: Platform> {
+    pub(crate) platform: P,
     pub(crate) current_dir: PathBuf,
     pub(crate) entries: Vec<Entry>,
     pub(crate) list_state: ListState,
@@ -34,9 +35,10 @@ pub(crate) struct App {
     pub(crate) message: Option<String>,
 }
 
-impl App {
-    pub(crate) fn new(start_dir: PathBuf) -> Result<Self> {
+impl<P: Platform> App<P> {
+    pub(crate) fn new(start_dir: PathBuf, platform: P) -> Result<Self> {
         let mut app = Self {
+            platform,
             current_dir: start_dir,
             entries: Vec::new(),
             list_state: ListState::default(),
@@ -141,7 +143,7 @@ impl App {
     }
 
     pub(crate) fn start_drive_select(&mut self) -> Result<()> {
-        self.drives = list_removable_drives()?;
+        self.drives = self.platform.list_removable_drives()?;
         if self.drives.is_empty() {
             self.message = Some("No removable drives found".to_string());
             return Ok(());
@@ -198,8 +200,8 @@ impl App {
     }
 }
 
-pub(crate) fn handle_normal_keys(
-    app: &mut App,
+pub(crate) fn handle_normal_keys<P: Platform>(
+    app: &mut App<P>,
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> Result<bool> {
@@ -228,7 +230,7 @@ pub(crate) fn handle_normal_keys(
     Ok(false)
 }
 
-pub(crate) fn handle_rename_keys(app: &mut App, code: KeyCode) -> Result<()> {
+pub(crate) fn handle_rename_keys<P: Platform>(app: &mut App<P>, code: KeyCode) -> Result<()> {
     match code {
         KeyCode::Esc => app.cancel_rename(),
         KeyCode::Enter => app.apply_rename()?,
@@ -272,7 +274,7 @@ pub(crate) fn handle_rename_keys(app: &mut App, code: KeyCode) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn handle_confirm_sort_keys(app: &mut App, code: KeyCode) -> Result<()> {
+pub(crate) fn handle_confirm_sort_keys<P: Platform>(app: &mut App<P>, code: KeyCode) -> Result<()> {
     match code {
         KeyCode::Char('y') | KeyCode::Char('Y') => {
             match perform_vfat_sort(app) {
@@ -291,7 +293,7 @@ pub(crate) fn handle_confirm_sort_keys(app: &mut App, code: KeyCode) -> Result<(
     Ok(())
 }
 
-pub(crate) fn handle_drive_select_keys(app: &mut App, code: KeyCode) -> Result<()> {
+pub(crate) fn handle_drive_select_keys<P: Platform>(app: &mut App<P>, code: KeyCode) -> Result<()> {
     match code {
         KeyCode::Up => app.move_drive_selection(-1),
         KeyCode::Down => app.move_drive_selection(1),
@@ -305,8 +307,8 @@ pub(crate) fn handle_drive_select_keys(app: &mut App, code: KeyCode) -> Result<(
     Ok(())
 }
 
-fn perform_vfat_sort(app: &mut App) -> Result<()> {
-    ensure_removable_and_not_c(&app.current_dir)?;
+fn perform_vfat_sort<P: Platform>(app: &mut App<P>) -> Result<()> {
+    app.platform.ensure_removable_and_not_c(&app.current_dir)?;
     vfat_reorder_dir(&app.current_dir, &app.entries)?;
     Ok(())
 }
@@ -315,7 +317,22 @@ fn perform_vfat_sort(app: &mut App) -> Result<()> {
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::Path;
     use tempfile::tempdir;
+    use crate::platform::Platform;
+
+    #[derive(Clone, Copy)]
+    struct FakePlatform;
+
+    impl Platform for FakePlatform {
+        fn ensure_removable_and_not_c(&self, _path: &Path) -> Result<()> {
+            Ok(())
+        }
+
+        fn list_removable_drives(&self) -> Result<Vec<String>> {
+            Ok(vec!["E:\\".to_string()])
+        }
+    }
 
     fn create_file(dir: &Path, name: &str) {
         let path = dir.join(name);
@@ -327,7 +344,7 @@ mod tests {
         let dir = tempdir().unwrap();
         create_file(dir.path(), "a.txt");
         create_file(dir.path(), "b.txt");
-        let mut app = App::new(dir.path().to_path_buf()).unwrap();
+        let mut app = App::new(dir.path().to_path_buf(), FakePlatform).unwrap();
 
         app.move_selection(-10);
         assert_eq!(app.list_state.selected(), Some(0));
@@ -341,7 +358,7 @@ mod tests {
         let dir = tempdir().unwrap();
         create_file(dir.path(), "a.txt");
         create_file(dir.path(), "b.txt");
-        let mut app = App::new(dir.path().to_path_buf()).unwrap();
+        let mut app = App::new(dir.path().to_path_buf(), FakePlatform).unwrap();
 
         app.list_state.select(Some(0));
         let first_before = app.entries[0].name.clone();
@@ -358,7 +375,7 @@ mod tests {
     fn rename_updates_filesystem_and_state() {
         let dir = tempdir().unwrap();
         create_file(dir.path(), "old.txt");
-        let mut app = App::new(dir.path().to_path_buf()).unwrap();
+        let mut app = App::new(dir.path().to_path_buf(), FakePlatform).unwrap();
 
         app.list_state.select(Some(0));
         app.start_rename();

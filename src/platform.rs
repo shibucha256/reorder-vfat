@@ -2,8 +2,25 @@ use anyhow::Result;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
+pub(crate) trait Platform {
+    fn ensure_removable_and_not_c(&self, path: &Path) -> Result<()>;
+    fn list_removable_drives(&self) -> Result<Vec<String>>;
+}
+
+pub(crate) struct WindowsPlatform;
+
+impl Platform for WindowsPlatform {
+    fn ensure_removable_and_not_c(&self, path: &Path) -> Result<()> {
+        ensure_removable_and_not_c_impl(path)
+    }
+
+    fn list_removable_drives(&self) -> Result<Vec<String>> {
+        list_removable_drives_impl()
+    }
+}
+
 #[cfg(windows)]
-pub(crate) fn ensure_removable_and_not_c(path: &Path) -> Result<()> {
+fn ensure_removable_and_not_c_impl(path: &Path) -> Result<()> {
     let root = drive_root(path)?;
     let letter = root
         .chars()
@@ -24,12 +41,12 @@ pub(crate) fn ensure_removable_and_not_c(path: &Path) -> Result<()> {
 }
 
 #[cfg(not(windows))]
-pub(crate) fn ensure_removable_and_not_c(_path: &Path) -> Result<()> {
+fn ensure_removable_and_not_c_impl(_path: &Path) -> Result<()> {
     anyhow::bail!("removable drive check is only supported on Windows");
 }
 
 #[cfg(windows)]
-pub(crate) fn list_removable_drives() -> Result<Vec<String>> {
+fn list_removable_drives_impl() -> Result<Vec<String>> {
     use windows_sys::Win32::Storage::FileSystem::GetLogicalDrives;
     let mask = unsafe { GetLogicalDrives() };
     if mask == 0 {
@@ -54,7 +71,7 @@ pub(crate) fn list_removable_drives() -> Result<Vec<String>> {
 }
 
 #[cfg(not(windows))]
-pub(crate) fn list_removable_drives() -> Result<Vec<String>> {
+fn list_removable_drives_impl() -> Result<Vec<String>> {
     Ok(Vec::new())
 }
 

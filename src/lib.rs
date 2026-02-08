@@ -12,11 +12,12 @@ use std::time::Duration;
 
 use app::{handle_confirm_sort_keys, handle_drive_select_keys, handle_normal_keys, handle_rename_keys};
 use app::App;
+use platform::WindowsPlatform;
 use ui::ui;
 
 pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
     let start_dir = std::env::current_dir().context("get current dir")?;
-    let mut app = App::new(start_dir)?;
+    let mut app = App::new(start_dir, WindowsPlatform)?;
 
     let tick_rate = Duration::from_millis(200);
     loop {

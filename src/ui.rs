@@ -1,9 +1,10 @@
 use crate::app::{App, Mode};
+use crate::platform::Platform;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 use unicode_width::UnicodeWidthStr;
 
-pub(crate) fn ui(frame: &mut Frame, app: &mut App) {
+pub(crate) fn ui<P: Platform>(frame: &mut Frame, app: &mut App<P>) {
     let size = frame.size();
 
     let chunks = Layout::default()
