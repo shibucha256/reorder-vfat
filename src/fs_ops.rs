@@ -87,3 +87,61 @@ fn unique_tmp_dir(dir: &Path) -> Result<PathBuf> {
     }
     anyhow::bail!("could not create unique temp dir");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_file(dir: &Path, name: &str) {
+        let path = dir.join(name);
+        fs::write(path, b"test").unwrap();
+    }
+
+    #[test]
+    fn read_dir_entries_reports_files_and_dirs() {
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "a.txt");
+        fs::create_dir(dir.path().join("sub")).unwrap();
+
+        let entries = read_dir_entries(dir.path()).unwrap();
+        assert_eq!(entries.len(), 2);
+
+        let mut names: Vec<String> = entries
+            .iter()
+            .map(|e| e.name.to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["a.txt".to_string(), "sub".to_string()]);
+
+        let is_dir_map: Vec<(String, bool)> = entries
+            .iter()
+            .map(|e| (e.name.to_string_lossy().to_string(), e.is_dir))
+            .collect();
+        assert!(is_dir_map.iter().any(|(n, d)| n == "sub" && *d));
+    }
+
+    #[test]
+    fn vfat_reorder_dir_preserves_entries_and_cleans_tmp() {
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "b.txt");
+        create_file(dir.path(), "a.txt");
+
+        let mut entries = read_dir_entries(dir.path()).unwrap();
+        entries.sort_by(|a, b| b.name.to_string_lossy().cmp(&a.name.to_string_lossy()));
+
+        vfat_reorder_dir(dir.path(), &entries).unwrap();
+
+        assert!(dir.path().join("a.txt").exists());
+        assert!(dir.path().join("b.txt").exists());
+
+        let leftovers: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.starts_with(".vfatsort_tmp"))
+            .collect();
+        assert!(leftovers.is_empty());
+    }
+}

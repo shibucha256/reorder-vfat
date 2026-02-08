@@ -214,7 +214,7 @@ pub(crate) fn handle_normal_keys(
         KeyCode::Enter => app.enter_dir()?,
         KeyCode::Backspace => app.go_parent()?,
         KeyCode::Char('r') => app.start_rename(),
-        KeyCode::Char('L') | KeyCode::Char('l') => app.start_drive_select()?,
+        KeyCode::Char('l') => app.start_drive_select()?,
         KeyCode::Char('w') => app.start_sort_confirm(),
         KeyCode::Char('s') => {
             app.entries
@@ -309,4 +309,66 @@ fn perform_vfat_sort(app: &mut App) -> Result<()> {
     ensure_removable_and_not_c(&app.current_dir)?;
     vfat_reorder_dir(&app.current_dir, &app.entries)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_file(dir: &Path, name: &str) {
+        let path = dir.join(name);
+        fs::write(path, b"test").unwrap();
+    }
+
+    #[test]
+    fn move_selection_clamps() {
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "a.txt");
+        create_file(dir.path(), "b.txt");
+        let mut app = App::new(dir.path().to_path_buf()).unwrap();
+
+        app.move_selection(-10);
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.move_selection(10);
+        assert_eq!(app.list_state.selected(), Some(app.entries.len() - 1));
+    }
+
+    #[test]
+    fn move_entry_swaps_and_updates_selection() {
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "a.txt");
+        create_file(dir.path(), "b.txt");
+        let mut app = App::new(dir.path().to_path_buf()).unwrap();
+
+        app.list_state.select(Some(0));
+        let first_before = app.entries[0].name.clone();
+        let second_before = app.entries[1].name.clone();
+
+        app.move_entry(1);
+
+        assert_eq!(app.entries[0].name, second_before);
+        assert_eq!(app.entries[1].name, first_before);
+        assert_eq!(app.list_state.selected(), Some(1));
+    }
+
+    #[test]
+    fn rename_updates_filesystem_and_state() {
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "old.txt");
+        let mut app = App::new(dir.path().to_path_buf()).unwrap();
+
+        app.list_state.select(Some(0));
+        app.start_rename();
+        app.rename_input = "new.txt".to_string();
+        app.rename_cursor = app.rename_input.len();
+        app.apply_rename().unwrap();
+
+        assert!(dir.path().join("new.txt").exists());
+        assert!(!dir.path().join("old.txt").exists());
+        assert_eq!(app.message.as_deref(), Some("Renamed"));
+        assert_eq!(app.mode, Mode::Normal);
+    }
 }
