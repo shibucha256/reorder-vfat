@@ -20,6 +20,7 @@ pub(crate) fn read_dir_entries(dir: &Path) -> Result<Vec<Entry>> {
     Ok(entries)
 }
 
+#[derive(Debug)]
 pub(crate) struct SortSummary {
     pub(crate) skipped_system: usize,
     pub(crate) skipped_readonly: usize,
@@ -205,6 +206,38 @@ mod tests {
 
         assert!(dir.path().join("a.txt").exists());
         assert!(dir.path().join("b.txt").exists());
+
+        let leftovers: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n.starts_with(".vfatsort_tmp"))
+            .collect();
+        assert!(leftovers.is_empty());
+    }
+
+    #[test]
+    fn vfat_reorder_dir_rolls_back_on_failure() {
+        use std::ffi::OsString;
+
+        let dir = tempdir().unwrap();
+        create_file(dir.path(), "a.txt");
+
+        let real = Entry {
+            name: OsString::from("a.txt"),
+            path: dir.path().join("a.txt"),
+            is_dir: false,
+        };
+        let fake = Entry {
+            name: OsString::from("missing.txt"),
+            path: dir.path().join("missing.txt"),
+            is_dir: false,
+        };
+        let entries = vec![real, fake];
+
+        let _err = vfat_reorder_dir(dir.path(), &entries).unwrap_err();
+
+        assert!(dir.path().join("a.txt").exists());
 
         let leftovers: Vec<String> = fs::read_dir(dir.path())
             .unwrap()
