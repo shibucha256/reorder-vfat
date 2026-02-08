@@ -19,9 +19,14 @@ pub(crate) fn ui<P: Platform>(frame: &mut Frame, app: &mut App<P>) {
     .style(Style::default().fg(Color::Cyan));
     frame.render_widget(title, chunks[0]);
 
+    let main_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(20), Constraint::Length(32)])
+        .split(chunks[1]);
+
     match app.mode {
         Mode::SelectDrive => {
-            let inner_width = chunks[1].width.saturating_sub(2) as usize;
+            let inner_width = main_chunks[0].width.saturating_sub(2) as usize;
             let items: Vec<ListItem> = app
                 .drives
                 .iter()
@@ -31,10 +36,10 @@ pub(crate) fn ui<P: Platform>(frame: &mut Frame, app: &mut App<P>) {
                 .block(Block::default().borders(Borders::ALL).title("Removable Drives"))
                 .highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
                 .highlight_symbol("> ");
-            frame.render_stateful_widget(list, chunks[1], &mut app.drive_state);
+            frame.render_stateful_widget(list, main_chunks[0], &mut app.drive_state);
         }
         _ => {
-            let inner_width = chunks[1].width.saturating_sub(2) as usize;
+            let inner_width = main_chunks[0].width.saturating_sub(2) as usize;
             let items: Vec<ListItem> = app
                 .entries
                 .iter()
@@ -51,9 +56,14 @@ pub(crate) fn ui<P: Platform>(frame: &mut Frame, app: &mut App<P>) {
                 .highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
                 .highlight_symbol("> ");
 
-            frame.render_stateful_widget(list, chunks[1], &mut app.list_state);
+            frame.render_stateful_widget(list, main_chunks[0], &mut app.list_state);
         }
     }
+
+    let help = Paragraph::new(help_lines(app.mode))
+        .block(Block::default().borders(Borders::ALL).title("Help"))
+        .wrap(Wrap { trim: true });
+    frame.render_widget(help, main_chunks[1]);
 
     match app.mode {
         Mode::Renaming => {
@@ -164,4 +174,34 @@ fn pad_to_width(s: &str, width: usize) -> String {
     out.push_str(s);
     out.push_str(&" ".repeat(width - w));
     out
+}
+
+fn help_lines(mode: Mode) -> Vec<Line<'static>> {
+    match mode {
+        Mode::Normal => vec![
+            Line::from("↑/↓  move"),
+            Line::from("Enter  open"),
+            Line::from("Backspace  up"),
+            Line::from("Ins  move down"),
+            Line::from("Del  move up"),
+            Line::from("R  rename"),
+            Line::from("S  sort"),
+            Line::from("L  drives"),
+            Line::from("W  write VFAT order"),
+            Line::from("Q  quit"),
+        ],
+        Mode::Renaming => vec![
+            Line::from("←/→  move cursor"),
+            Line::from("Home/End"),
+            Line::from("Backspace  delete"),
+            Line::from("Enter  apply"),
+            Line::from("Esc  cancel"),
+        ],
+        Mode::ConfirmSort => vec![Line::from("y  write"), Line::from("n  cancel")],
+        Mode::SelectDrive => vec![
+            Line::from("↑/↓  move"),
+            Line::from("Enter  open"),
+            Line::from("Esc  cancel"),
+        ],
+    }
 }
