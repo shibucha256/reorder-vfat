@@ -158,12 +158,14 @@ impl<P: Platform> App<P> {
 
     pub(crate) fn start_drive_select(&mut self) -> Result<()> {
         self.drives = self.platform.list_removable_drives()?;
-        if self.drives.is_empty() {
-            self.message = Some("No removable drives found".to_string());
-            return Ok(());
-        }
-        self.drive_state.select(Some(0));
         self.mode = Mode::SelectDrive;
+        if self.drives.is_empty() {
+            self.drive_state.select(None);
+            self.message = Some("USBメモリやSDカードを刺してください。".to_string());
+        } else {
+            self.drive_state.select(Some(0));
+            self.message = None;
+        }
         Ok(())
     }
 
@@ -316,18 +318,26 @@ pub(crate) fn handle_confirm_sort_keys<P: Platform>(app: &mut App<P>, code: KeyC
     Ok(())
 }
 
-pub(crate) fn handle_drive_select_keys<P: Platform>(app: &mut App<P>, code: KeyCode) -> Result<()> {
+pub(crate) fn handle_drive_select_keys<P: Platform>(
+    app: &mut App<P>,
+    code: KeyCode,
+) -> Result<bool> {
     match code {
         KeyCode::Up => app.move_drive_selection(-1),
         KeyCode::Down => app.move_drive_selection(1),
         KeyCode::Enter => app.select_drive()?,
+        KeyCode::F(5) => app.start_drive_select()?,
         KeyCode::Esc => {
-            app.mode = Mode::Normal;
-            app.message = Some("Drive selection canceled".to_string());
+            if app.drives.is_empty() {
+                return Ok(true);
+            } else {
+                app.mode = Mode::Normal;
+                app.message = Some("Drive selection canceled".to_string());
+            }
         }
         _ => {}
     }
-    Ok(())
+    Ok(false)
 }
 
 fn perform_vfat_sort<P: Platform>(app: &mut App<P>) -> Result<SortSummary> {

@@ -106,7 +106,13 @@ pub(crate) fn ui<P: Platform>(frame: &mut Frame, app: &mut App<P>) {
         }
         Mode::Renaming => format!("Rename to: {}", app.rename_input),
         Mode::ConfirmSort => "Write VFAT order? y/n".to_string(),
-        Mode::SelectDrive => "Select drive: Enter open  Esc cancel".to_string(),
+        Mode::SelectDrive => {
+            if let Some(msg) = &app.message {
+                msg.clone()
+            } else {
+                "Select drive: Enter open  F5 reload  Esc cancel".to_string()
+            }
+        }
     };
     let status_bar = Paragraph::new(status).block(Block::default().borders(Borders::ALL));
     frame.render_widget(status_bar, chunks[2]);
@@ -205,6 +211,7 @@ fn help_lines(mode: Mode) -> Vec<Line<'static>> {
         Mode::SelectDrive => vec![
             Line::from("↑/↓  move"),
             Line::from("Enter  open"),
+            Line::from("F5  reload"),
             Line::from("Esc  cancel"),
         ],
     }

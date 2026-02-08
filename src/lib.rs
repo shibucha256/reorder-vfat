@@ -22,6 +22,7 @@ use ui::ui;
 pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
     let start_dir = std::env::current_dir().context("get current dir")?;
     let mut app = App::new(start_dir, WindowsPlatform)?;
+    app.start_drive_select()?;
 
     let tick_rate = Duration::from_millis(200);
     loop {
@@ -45,7 +46,9 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<
                         handle_confirm_sort_keys(&mut app, key.code)?;
                     }
                     app::Mode::SelectDrive => {
-                        handle_drive_select_keys(&mut app, key.code)?;
+                        if handle_drive_select_keys(&mut app, key.code)? {
+                            return Ok(());
+                        }
                     }
                 }
             }
