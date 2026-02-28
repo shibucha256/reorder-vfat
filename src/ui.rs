@@ -191,7 +191,7 @@ fn help_lines(mode: Mode) -> Vec<Line<'static>> {
         Mode::Normal => vec![
             Line::from("↑/↓  move"),
             Line::from("Enter  open"),
-            Line::from("Backspace  up"),
+            Line::from("Backspace  up dir"),
             Line::from("Ins  move down"),
             Line::from("Del  move up"),
             Line::from("R  rename"),
