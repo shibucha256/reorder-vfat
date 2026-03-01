@@ -26,7 +26,7 @@ WindowsでVFAT/exFATディレクトリの順序を並べ替えるツールです
 
 ## ダウンロード
 
-- [Download Latest Version](https://github.com/shibucha256/reorder-vfat/releases/latest)
+- [Download Latest Version](https://github.com/shibucha256/reorder-vfat/releases/tag/v0.1.0)
 
 
 ## ビルド
