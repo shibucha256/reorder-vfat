@@ -1,8 +1,9 @@
 # reorder-vfat
 
-Windows向けのVFAT/exFATディレクトリの順序を並べ替えるツールです。
+WindowsでVFAT/exFATディレクトリの順序を並べ替えるツールです。
 - USBメモリのFATに登録されている順に再生するMP3プレーヤーで、再生順を変えたいときに
 - 低レイヤーでFATを直接書き換えてはいません
+
 
 ## 使い方
 
@@ -14,12 +15,18 @@ Windows向けのVFAT/exFATディレクトリの順序を並べ替えるツール
 
 主要キー操作は画面右側のヘルプを参照してください。
 
+
 ## 注意
 
 - 失敗することもあり得ます。バックアップは必ず取ってください。
 - 取り外し可能ドライブのみ対象です。
 - FAT/exFAT以外のドライブには書き込みできません。
 - 安全対策は入れていますが、もしできそうに見えてもUSBメモリ以外で実行しないでください。
+
+
+## ダウンロード
+
+- [Download Latest Version](https://github.com/shibucha256/reorder-vfat/releases/latest)
 
 
 ## ビルド
