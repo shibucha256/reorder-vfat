@@ -21,11 +21,12 @@ Windows向けのVFAT/exFATディレクトリの順序を並べ替えるツール
 - FAT/exFAT以外のドライブには書き込みできません。
 - 安全対策は入れていますが、もしできそうに見えてもUSBメモリ以外で実行しないでください。
 
-## ダウンロード
-
-- reorder-vfat-0.1.0-windows.zip
 
 ## ビルド
+
+```
+cargo build --release
+```
 
 - zip作成
 
